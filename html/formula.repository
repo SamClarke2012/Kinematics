@@ -1,0 +1,10 @@
+\form#0:$W$
+\form#1:$q = W+Xi+Yj+Zk$
+\form#2:$X$
+\form#3:$Y$
+\form#4:$Z$
+\form#5:$\phi$
+\form#6:$\arctan(2.0(Q(w)Q(z)+Q(x)Q(y)),1.0-2.0(Q(y)^2+Q(z)^2))$
+\form#7:$\theta$
+\form#8:$\arcsin(2.0(Q(w)Q(y)-Q(z)Q(x)))$
+\form#9:$\psi$
