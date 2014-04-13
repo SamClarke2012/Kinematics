@@ -43,16 +43,14 @@ class Quaternion():
         Returns a EulerAngles object of itself (in degress)
         
         """                
-        # yaw = atan2(2.0f*(qw*qz + qx*qy), 1-2.0*(qy*qy + qz*qz))
-        # pitch = wrap_asin(2.0*(qw*qy - qz*qx))
-        # roll = (atan2(2.0*(qw*qx + qy*qz), 1.0 - 2.0*(qx*qx + qy*qy)))
-        yaw = math.atan2(2.0*(self.w*self.z + self.x*self.y),\
-                        (1.0 - 2.0*(self.y**2 + self.z**2)))/math.pi*180.0
-
+        # roll = (atan2(2.0*(qw*qx + qy*qz), 1.0 - 2.0*(qx*qx + qy*qy))
         roll = math.atan2(2.0*(self.w*self.x + self.y*self.z), \
                          1.0 - 2.0*(self.x**2 + self.y**2))/math.pi*180.0
-
+        # pitch = wrap_asin(2.0*(qw*qy - qz*qx))
         pitch = _wrap_asin(2.0*(self.w*self.y - self.z*self.x))/math.pi*180.0
+        # yaw = atan2(2.0f*(qw*qz + qx*qy), 1-2.0*(qy*qy + qz*qz))
+        yaw = math.atan2(2.0*(self.w*self.z + self.x*self.y),\
+                        (1.0 - 2.0*(self.y**2 + self.z**2)))/math.pi*180.0
 
         return EulerAngles(yaw, pitch, roll)
  
@@ -89,7 +87,7 @@ class Quaternion():
         """
         Returns a new quaternion that is the conjugate of this quaternion
         """
-        return Quaternion(self.w, -self.x, -self.y, -self.z)
+        return Quaternion(-self.w, self.x, self.y, self.z)
  
     ##
     # Find the quaternion difference between this quaternion and another.
@@ -180,7 +178,7 @@ class EulerAngles():
 class Kinematics(Quaternion):
     def __init__(self,  w=1, x=0, y=0, z=0):
         Quaternion.__init__(self, w, x, y, z)
-        self.target = self
+        self.target = Quaternion(1,0,0,0)
         self.time = time.time()
         self.degSecYPR = (0.0, 0.0, 0.0)
         self.error = self.difference(self.target)
@@ -197,6 +195,20 @@ class Kinematics(Quaternion):
         data += 'Angular velocities (Deg/Sec):\n'
         data += str(self.getAngularVelocities())+'\n'
         return data
+
+    ##
+    # Set an new attitude quaternion
+    # @param q A Quaternion to use as the attitude
+    def setAttitude(self, q):
+        """
+        Set new attitude
+        """
+        self.w = q.w
+        self.x = q.x
+        self.y = q.y
+        self.z = q.z
+        self.normalise()
+        self.update(self, self.target)
     ##
     # Set an new target quaternion
     # @param q A Quaternion to use as the target attitude
@@ -213,7 +225,7 @@ class Kinematics(Quaternion):
         """
         Rotate the target attitude by a quaternion
         """
-        self.target = self.target.productOf(q)
+        self.target = q.productOf(self.target)
         self.update(self, self.target)
     ##
     # Get current angular velocities as a vector (Y,P,R)
@@ -265,9 +277,12 @@ class Kinematics(Quaternion):
         # calculate attitude change as Euler angles
         delta = prev.difference(self).toEuler()
         # calculate angular velocities in deg/sec
-        self.degSecYPR = (delta.getYaw()/dt, delta.getPitch()/dt, delta.getRoll()/dt)
+        Y = math.ceil(abs(delta.getYaw()/dt)  *100)/100.0
+        P = math.ceil(abs(delta.getPitch()/dt)*100)/100.0
+        R = math.ceil(abs(delta.getRoll()/dt) *100)/100.0
+        self.degSecYPR = (Y, P, R)
         # calculate target error as a unit quaternion
-        self.error = self.difference(self.target)
+        self.error = target.difference(self)#self.difference(self.target)
  
        
 #####################################################################################
@@ -288,38 +303,60 @@ def _wrap_asin(v):
 
 #####################################################################################
 ##    
-##if __name__=="__main__":
-##    
-##    def test1():
-##        # Euler to quaternion back to Euler
-##        for n in xrange(91):
-##            # Start in good ol' Euler angles
-##            e = EulerAngles(n*2,n-1,n/2.0)
-##            q = e.toQuaternion()
-##            print '#'*3+'TEST CASE = ',e,'#'*3
-##            print 'To Quaternion = ', q
-##            print 'Back to Euler = ', q.toEuler(), '\n'
-##     
-##    def test2():
-##        # Target error test
-##        k = Kinematics() 
-##        # Yaw 0, Pitch 0, Roll +90
-##        k.update(k, Quaternion(1,1,0,0))
-##        print k
-##      
-##    def test3():
-##        # Make a relative modification to the target attitude  
-##        # (relative change described as both Euler and Quaternion)
-##        body = Kinematics()
-##        print body
-##        print '#'*30,'\nAdding +89 degrees pitch...\n','#'*30
-##        # As a conversion from Euler angles
-##        change = EulerAngles(0,89,0).toQuaternion()
-##        body.rotateTarget(change)
-##        print body
-##        print '#'*30,'\nAdding +90 degrees roll...\n','#'*30
-##        # As a quaternion
-##        change = Quaternion(1,1,0,0)
-##        body.rotateTarget(change)
-##        print body
+if __name__=="__main__":
+    import serial
+    ser = serial.Serial('/dev/ttyACM0', 115200)
+
+    def test1():
+        # Euler to quaternion back to Euler
+        for n in xrange(91):
+            # Start in good ol' Euler angles
+            e = EulerAngles(n*2,n-1,n/2.0)
+            q = e.toQuaternion()
+            print '#'*3+'TEST CASE = ',e,'#'*3
+            print 'To Quaternion = ', q
+            print 'Back to Euler = ', q.toEuler(), '\n'
+     
+    def test2():
+        # Target error test
+        k = Kinematics() 
+        # Yaw 0, Pitch 0, Roll +90
+        k.update(k, Quaternion(1,1,0,0))
+        print k
+      
+    def test3():
+        # Make a relative modification to the target attitude  
+        # (relative change described as both Euler and Quaternion)
+        body = Kinematics()
+        #print body
+        #print '#'*30,'\nAdding +89 degrees pitch...\n','#'*30
+        # As a conversion from Euler angles
+        change = EulerAngles(0,89,0).toQuaternion()
+        body.rotateTarget(change)
+        #print body
+        #print '#'*30,'\nAdding +90 degrees roll...\n','#'*30
+        # As a quaternion
+        #change = Quaternion(1,1,0,0)
+        #body.rotateTarget(change)
+        #print body
         
+    def read():
+        ser.write('$')
+        s = ser.readline().strip().split(',')
+        q = [float(s[0]),float(s[1]),float(s[2]),float(s[3])]
+        return q
+
+    def test4():
+        q = read()
+        k = Kinematics(q[0],q[1],q[2],q[3])
+        print k
+        while True:#for n in xrange(80):
+            q = read()
+            attitude = Quaternion(q[0],q[1],q[2],q[3])
+            k.update(attitude, EulerAngles(0,10,10).toQuaternion())#EulerAngles(0,1,0).toQuaternion())
+            print k
+            print k.target, '\n\n'
+        ser.close()
+
+test4()
+
